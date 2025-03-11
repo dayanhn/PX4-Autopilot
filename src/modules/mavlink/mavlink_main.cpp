@@ -2825,6 +2825,13 @@ Mavlink::start(int argc, char *argv[])
 {
 	MavlinkULog::initialize();
 	MavlinkCommandSender::initialize();
+	int debug = 0;
+	while (debug)
+	{
+		printf("%s,%d\n",__FILE__,__LINE__);
+		sleep(1);
+
+	}
 
 	if (!_event_buffer) {
 		_event_buffer = new events::EventBuffer();

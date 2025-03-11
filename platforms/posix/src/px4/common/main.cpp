@@ -587,6 +587,13 @@ int run_startup_script(const std::string &commands_file, const std::string &abso
 
 
 	PX4_INFO("startup script: %s", shell_command.c_str());
+	int debug = 0;
+	while (debug)
+	{
+		printf("%s,%d\n",__FILE__,__LINE__);
+		sleep(1);
+
+	}
 
 	int ret = 0;
 
