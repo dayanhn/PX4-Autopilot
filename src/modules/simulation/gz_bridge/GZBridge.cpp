@@ -61,9 +61,10 @@ GZBridge::~GZBridge()
 
 int GZBridge::init()
 {
+	printf("============GZBridge::init=========\n");
 	// clock
 	std::string clock_topic = "/world/" + _world_name + "/clock";
-
+	//订阅 Gazebo 仿真中的时钟数据,用于同步 PX4 与 Gazebo 的时间
 	if (!_node.Subscribe(clock_topic, &GZBridge::clockCallback, this)) {
 		PX4_ERR("failed to subscribe to %s", clock_topic.c_str());
 		return PX4_ERROR;
@@ -71,7 +72,7 @@ int GZBridge::init()
 
 	// pose: /world/$WORLD/pose/info
 	std::string world_pose_topic = "/world/" + _world_name + "/pose/info";
-
+	//获取模型在世界坐标系中的位姿（位置和姿态）
 	if (!_node.Subscribe(world_pose_topic, &GZBridge::poseInfoCallback, this)) {
 		PX4_ERR("failed to subscribe to %s", world_pose_topic.c_str());
 		return PX4_ERROR;
@@ -79,7 +80,7 @@ int GZBridge::init()
 
 	// IMU: /world/$WORLD/model/$MODEL/link/base_link/sensor/imu_sensor/imu
 	std::string imu_topic = "/world/" + _world_name + "/model/" + _model_name + "/link/base_link/sensor/imu_sensor/imu";
-
+	//获取加速度计和陀螺仪数据，用于 PX4 的状态估计
 	if (!_node.Subscribe(imu_topic, &GZBridge::imuCallback, this)) {
 		PX4_ERR("failed to subscribe to %s", imu_topic.c_str());
 		return PX4_ERROR;
@@ -88,7 +89,7 @@ int GZBridge::init()
 	// mag: /world/$WORLD/model/$MODEL/link/base_link/sensor/magnetometer_sensor/magnetometer
 	std::string mag_topic = "/world/" + _world_name + "/model/" + _model_name +
 				"/link/base_link/sensor/magnetometer_sensor/magnetometer";
-
+	//获取磁场强度数据，用于 PX4 的航向估计
 	if (!_node.Subscribe(mag_topic, &GZBridge::magnetometerCallback, this)) {
 		PX4_ERR("failed to subscribe to %s", mag_topic.c_str());
 		return PX4_ERROR;
@@ -96,7 +97,7 @@ int GZBridge::init()
 
 	// odom: /world/$WORLD/model/$MODEL/link/base_link/odometry_with_covariance
 	std::string odometry_topic = "/model/" + _model_name + "/odometry_with_covariance";
-
+	//订阅 Gazebo 仿真中的里程计数据（模型的位姿和速度信息，用于 PX4 的状态估计）
 	if (!_node.Subscribe(odometry_topic, &GZBridge::odometryCallback, this)) {
 		PX4_ERR("failed to subscribe to %s", odometry_topic.c_str());
 		return PX4_ERROR;
@@ -104,7 +105,7 @@ int GZBridge::init()
 
 	// Laser Scan: optional
 	std::string laser_scan_topic = "/world/" + _world_name + "/model/" + _model_name + "/link/link/sensor/lidar_2d_v2/scan";
-
+	//获取 激光扫描数据，用于避障或 SLAM
 	if (!_node.Subscribe(laser_scan_topic, &GZBridge::laserScanCallback, this)) {
 		PX4_WARN("failed to subscribe to %s", laser_scan_topic.c_str());
 	}
@@ -112,7 +113,7 @@ int GZBridge::init()
 	// Distance Sensor(AFBRS50): optional
 	std::string lidar_sensor = "/world/" + _world_name + "/model/" + _model_name +
 				   "/link/lidar_sensor_link/sensor/lidar/scan";
-
+	//获取 雷达数据，用于避障或 SLAM
 	if (!_node.Subscribe(lidar_sensor, &GZBridge::laserScantoLidarSensorCallback, this)) {
 		PX4_WARN("failed to subscribe to %s", lidar_sensor.c_str());
 	}
@@ -120,7 +121,7 @@ int GZBridge::init()
 	// Airspeed: /world/$WORLD/model/$MODEL/link/airspeed_link/sensor/air_speed/air_speed
 	std::string airspeed_topic = "/world/" + _world_name + "/model/" + _model_name +
 				     "/link/airspeed_link/sensor/air_speed/air_speed";
-
+	//获取空速数据，用于固定翼飞行器的控制
 	if (!_node.Subscribe(airspeed_topic, &GZBridge::airspeedCallback, this)) {
 		PX4_ERR("failed to subscribe to %s", airspeed_topic.c_str());
 		return PX4_ERROR;
@@ -129,7 +130,7 @@ int GZBridge::init()
 	// Air pressure: /world/$WORLD/model/$MODEL/link/base_link/sensor/air_pressure_sensor/air_pressure
 	std::string air_pressure_topic = "/world/" + _world_name + "/model/" + _model_name +
 					 "/link/base_link/sensor/air_pressure_sensor/air_pressure";
-
+	//获取气压数据，用于高度估计
 	if (!_node.Subscribe(air_pressure_topic, &GZBridge::barometerCallback, this)) {
 		PX4_ERR("failed to subscribe to %s", air_pressure_topic.c_str());
 		return PX4_ERROR;
@@ -138,7 +139,7 @@ int GZBridge::init()
 	// GPS: /world/$WORLD/model/$MODEL/link/base_link/sensor/navsat_sensor/navsat
 	std::string nav_sat_topic = "/world/" + _world_name + "/model/" + _model_name +
 				    "/link/base_link/sensor/navsat_sensor/navsat";
-
+	//获取 GPS 定位数据，用于导航
 	if (!_node.Subscribe(nav_sat_topic, &GZBridge::navSatCallback, this)) {
 		PX4_ERR("failed to subscribe to %s", nav_sat_topic.c_str());
 		return PX4_ERROR;
@@ -146,32 +147,32 @@ int GZBridge::init()
 
 	std::string flow_topic = "/world/" + _world_name + "/model/" + _model_name +
 				 "/link/flow_link/sensor/optical_flow/optical_flow";
-
+	//获取光流数据，用于视觉定位
 	if (!_node.Subscribe(flow_topic, &GZBridge::opticalFlowCallback, this)) {
 		PX4_ERR("failed to subscribe to %s", flow_topic.c_str());
 		return PX4_ERROR;
 	}
-
+	//初始化电子调速器（ESC）输出接口。用于将 PX4 的控制指令发送到 Gazebo 中的电机
 	if (!_mixing_interface_esc.init(_model_name)) {
 		PX4_ERR("failed to init ESC output");
 		return PX4_ERROR;
 	}
-
+	//初始化舵机输出接口,用于将 PX4 的控制指令发送到 Gazebo 中的舵机
 	if (!_mixing_interface_servo.init(_model_name)) {
 		PX4_ERR("failed to init servo output");
 		return PX4_ERROR;
 	}
-
+	//初始化电机输出接口，用于将 PX4 的控制指令发送到 Gazebo 中的电机
 	if (!_mixing_interface_wheel.init(_model_name)) {
 		PX4_ERR("failed to init motor output");
 		return PX4_ERROR;
 	}
-
+	//初始化云台控制接口，用于将 PX4 的控制指令发送到 Gazebo 中的云台
 	if (!_gimbal.init(_world_name, _model_name)) {
 		PX4_ERR("failed to init gimbal");
 		return PX4_ERROR;
 	}
-
+	//立即启动任务调度,确保 GZBridge 的任务能够及时执行
 	ScheduleNow();
 	return OK;
 }

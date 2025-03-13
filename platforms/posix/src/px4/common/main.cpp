@@ -123,9 +123,9 @@ int SITL_MAIN(int argc, char **argv)
 int main(int argc, char **argv)
 #endif
 {
-	bool is_client = false;
-	bool pxh_off = false;
-	bool server_is_running = false;
+	bool is_client = false;//标识当前是否以客户端模式运行
+	bool pxh_off = false;//标识是否禁用PX4的shell（PXH）
+	bool server_is_running = false;//标识PX4服务器是否已经在运行
 
 	/* Symlinks point to all commands that can be used as a client with a prefix. */
 	const char prefix[] = PX4_SHELL_COMMAND_PREFIX;
@@ -135,12 +135,12 @@ int main(int argc, char **argv)
 
 	int ret = PX4_OK;
 	int instance = 0;
-
+	//解析命令行参数，判断当前是否以客户端模式运行，并获取二进制文件的绝对路径
 	if (argc > 0) {
 		/* The executed binary name could start with a path, so strip it away */
 		const std::string full_binary_name = argv[0];
 		const std::string binary_name = file_basename(full_binary_name);
-
+		//binary_name为px4,非px4-,所以不是客户端模式
 		if (binary_name.compare(0, strlen(prefix), prefix) == 0) {
 			is_client = true;
 		}
@@ -149,7 +149,7 @@ int main(int argc, char **argv)
 
 		absolute_binary_path = get_absolute_binary_path(full_binary_name);
 	}
-
+	//如果当前是客户端模式，处理--instance参数，检查服务器是否在运行，并调用px4_daemon::Client处理客户端逻辑
 	if (is_client) {
 		if (argc >= 3 && strcmp(argv[1], "--instance") == 0) {
 			instance = strtoul(argv[2], nullptr, 10);
@@ -162,7 +162,7 @@ int main(int argc, char **argv)
 		}
 
 		PX4_DEBUG("instance: %i", instance);
-
+		//服务端必须已经开启
 		ret = get_server_running(instance, &server_is_running);
 
 		if (ret != PX4_OK) {
@@ -179,14 +179,28 @@ int main(int argc, char **argv)
 		argv[0] += path_length + strlen(prefix);
 
 		px4_daemon::Client client(instance);
+		//客户端转发命令参数到服务端
 		return client.process_args(argc, (const char **)argv);
 
 	} else {
+/*
+如果当前是服务器模式，尝试将PX4进程的虚拟地址空间锁定在物理内存中，以防止内存被交换到磁盘（swap），从而避免因页面交换导致的延迟
+_POSIX_MEMLOCK > 0：检查系统是否支持内存锁定功能（mlockall）。
+_POSIX_MEMLOCK是一个宏，表示系统是否支持POSIX标准的内存锁定功能。如果其值大于0，表示支持。
+!defined(ENABLE_LOCKSTEP_SCHEDULER)：检查是否未启用锁步调度器（Lockstep Scheduler）。
+锁步调度器是一种用于仿真的调度机制，通常在仿真模式下使用。如果启用了锁步调度器，则不需要锁定内存。
+只有在系统支持内存锁定且未启用锁步调度器时才会编译和执行。
+*/
 #if (_POSIX_MEMLOCK > 0) && !defined(ENABLE_LOCKSTEP_SCHEDULER)
 
 		// try to lock address space into RAM, to avoid page swap delay
 		// TODO: Check CAP_IPC_LOCK instead of euid
+		//只有root用户才有权限锁定内存，因此这里检查当前用户是否为root
 		if (geteuid() == 0) {   // root user
+			/*
+			mlockall()：将当前进程的虚拟地址空间锁定在物理内存中。它接受一个参数，用于指定锁定的范围：
+					MCL_CURRENT：锁定当前已经分配的内存。
+					MCL_FUTURE：锁定未来分配的内存*/
 			if (mlockall(MCL_CURRENT | MCL_FUTURE)) {	// check if both works
 				PX4_ERR("mlockall() failed! errno: %d (%s)", errno, strerror(errno));
 				munlockall();	// avoid mlock limitation caused alloc failure in future
@@ -257,7 +271,7 @@ int main(int argc, char **argv)
 		if (instance_provided) {
 			PX4_INFO("instance: %i", instance);
 		}
-
+		//如果未指定路径，则使用默认的构建目录和源代码目录
 #if defined(PX4_BINARY_DIR)
 
 		// data_path & working_directory: if no commands specified or in current working directory),
@@ -281,12 +295,13 @@ int main(int argc, char **argv)
 		}
 
 #endif // PX4_SOURCE_DIR
-
+		//启动脚本文件
 		if (commands_file.empty()) {
 			commands_file = "etc/init.d-posix/rcS";
 		}
 
 		// change the CWD befre setting up links and other directories
+		//切换到指定的工作目录
 		if (!working_directory.empty()) {
 
 			// if instance specified, but
@@ -332,12 +347,12 @@ int main(int argc, char **argv)
 				}
 			}
 		}
-
+		//创建必要的符号链接和目录，并检查启动文件是否存在
 		if (!file_exists(commands_file)) {
 			PX4_ERR("Error opening startup file, does not exist: %s", commands_file.c_str());
 			return -1;
 		}
-
+		//注册信号处理函数，设置CPU频率缩放，初始化PX4服务器，并标记服务器为运行状态
 		register_sig_handler();
 		set_cpu_scaling();
 
@@ -359,7 +374,7 @@ int main(int argc, char **argv)
 		if (ret != PX4_OK) {
 			return ret;
 		}
-
+		//运行启动脚本，并根据pxh_off标志决定是否启动PX4 shell
 		ret = run_startup_script(commands_file, absolute_binary_path, instance);
 
 		if (ret == 0) {
@@ -372,7 +387,7 @@ int main(int argc, char **argv)
 				pxh.run_pxh();
 			}
 		}
-
+		//清理锁文件，执行关机命令，并返回执行结果
 		// delete lock
 		const std::string file_lock_path = std::string(LOCK_FILE_PATH) + '-' + std::to_string(instance);
 		int fd_flock = open(file_lock_path.c_str(), O_RDWR, 0666);

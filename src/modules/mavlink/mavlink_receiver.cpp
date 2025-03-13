@@ -3494,6 +3494,7 @@ void MavlinkReceiver::start()
 	pthread_attr_destroy(&receiveloop_attr);
 }
 
+
 void
 MavlinkReceiver::updateParams()
 {

@@ -56,6 +56,7 @@ elif [ "$PX4_SIMULATOR" = "gz" ] || [ "$(param show -q SIM_GZ_EN)" = "1" ]; then
 
 		# "gz sim" only available in Garden and later
 		GZ_SIM_VERSIONS=$(gz sim --versions 2>&1)
+		# $?: 这是Shell中的特殊变量，表示 ?上一条命令的退出状态码,0 表示命令成功执行
 		if [ $? -eq 0 ] && [ "${GZ_SIM_VERSIONS}" != "" ]
 		then
 			# "gz sim" from Garden on
@@ -74,6 +75,9 @@ elif [ "$PX4_SIMULATOR" = "gz" ] || [ "$(param show -q SIM_GZ_EN)" = "1" ]; then
 		fi
 
 		# Look for an already running world
+		# gz topic -l 列出GAZEBO中所有正在发布或订阅的主题
+		# grep -m 1 -e "^/world/.*/clock" 进行正则匹配，-m 1表示只匹配第一个符合的主题，^: 匹配字符串开头，匹配/world/***/clock
+		# sed 's/\/world\///g; s/\/clock//g'：对筛选出的主题进行字符串替换，提取出世界名称，s/\/world\///g表示删除/world
 		gz_world=$( ${gz_command} topic -l | grep -m 1 -e "^/world/.*/clock" | sed 's/\/world\///g; s/\/clock//g' )
 
 		# shellcheck disable=SC2153
@@ -90,9 +94,10 @@ elif [ "$PX4_SIMULATOR" = "gz" ] || [ "$(param show -q SIM_GZ_EN)" = "1" ]; then
 			echo "INFO  [init] Starting gazebo with world: ${PX4_GZ_WORLDS}/${PX4_GZ_WORLD}.sdf"
 
 			${gz_command} ${gz_sub_command} --verbose=${GZ_VERBOSE:=1} -r -s "${PX4_GZ_WORLDS}/${PX4_GZ_WORLD}.sdf" &
-
+			echo "shell : ${gz_command} ${gz_sub_command} --verbose=${GZ_VERBOSE:=1} -r -s \"${PX4_GZ_WORLDS}/${PX4_GZ_WORLD}.sdf\""
 			if [ -z "${HEADLESS}" ]; then
 				echo "INFO  [init] Starting gz gui"
+				echo "shell : ${gz_command} ${gz_sub_command} -g"
 				${gz_command} ${gz_sub_command} -g > /dev/null 2>&1 &
 			fi
 		else
@@ -112,6 +117,7 @@ elif [ "$PX4_SIMULATOR" = "gz" ] || [ "$(param show -q SIM_GZ_EN)" = "1" ]; then
 		MODEL_NAME_INSTANCE="${MODEL_NAME}_${px4_instance}"
 
 		POSE_ARG=""
+		# 姿态参数解析
 		if [ -n "${PX4_GZ_MODEL_POSE}" ]; then
 			pos_x=$(echo "${PX4_GZ_MODEL_POSE}" | awk -F',' '{print $1}')
 			pos_y=$(echo "${PX4_GZ_MODEL_POSE}" | awk -F',' '{print $2}')
@@ -126,11 +132,14 @@ elif [ "$PX4_SIMULATOR" = "gz" ] || [ "$(param show -q SIM_GZ_EN)" = "1" ]; then
 
 		echo "INFO  [init] Spawning model"
 		# Spawn model
+		# 调用Gazebo服务生成模型
 		${gz_command} service -s "/world/${PX4_GZ_WORLD}/create" --reqtype gz.msgs.EntityFactory \
 				--reptype gz.msgs.Boolean --timeout 5000 \
 				--req "sdf_filename: \"${PX4_GZ_MODELS}/${MODEL_NAME}\", name: \"${MODEL_NAME_INSTANCE}\", allow_renaming: false${POSE_ARG}" > /dev/null 2>&1
 
 		# Start gz_bridge
+		# gz_bridge是PX4与Gazebo之间的通信桥梁，实现功能：转发Gazebo的传感器数据（IMU/GPS等）到PX4的uORB总线
+		# 将PX4执行器输出映射到Gazebo模型关节控制
 		if ! gz_bridge start -w "${PX4_GZ_WORLD}" -n "${MODEL_NAME_INSTANCE}"; then
 			echo "ERROR [init] gz_bridge failed to start and spawn model"
 			exit 1
@@ -160,7 +169,7 @@ elif [ "$PX4_SIMULATOR" = "gz" ] || [ "$(param show -q SIM_GZ_EN)" = "1" ]; then
 			echo "INFO  [init] Waiting for Gazebo world..."
 			sleep 1
 		done
-
+		# 设置实时因子 修改Gazebo物理引擎的real_time_factor参数，例如设置PX4_SIM_SPEED_FACTOR=2.0可实现2倍速仿真
 		if [ -n "${PX4_SIM_SPEED_FACTOR}" ]; then
 			echo "INFO  [init] Setting simulation speed factor: ${PX4_SIM_SPEED_FACTOR}"
 			${gz_command} service -s "/world/${PX4_GZ_WORLD}/set_physics" --reqtype gz.msgs.Physics \
@@ -168,7 +177,7 @@ elif [ "$PX4_SIMULATOR" = "gz" ] || [ "$(param show -q SIM_GZ_EN)" = "1" ]; then
 						--req "real_time_factor: ${PX4_SIM_SPEED_FACTOR}" > /dev/null 2>&1
 		fi
 
-
+		# 设置相机跟随
 		# Set up camera to follow the model if requested
 		if [ -n "${PX4_GZ_FOLLOW}" ]; then
 
@@ -209,7 +218,7 @@ elif [ "$PX4_SIMULATOR" = "gz" ] || [ "$(param show -q SIM_GZ_EN)" = "1" ]; then
 	# Start the sensor simulator modules
 	if param compare -s SENS_EN_BAROSIM 1
 	then
-		sensor_baro_sim start
+		sensor_baro_sim start #模拟气压计
 	fi
 	if param compare -s SENS_EN_GPSSIM 1
 	then

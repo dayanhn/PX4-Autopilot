@@ -8,6 +8,8 @@
 . ${R}etc/init.d/rc.mc_defaults
 
 PX4_SIMULATOR=${PX4_SIMULATOR:=gz}
+#使用forest地图时，无人机状态不正常
+#PX4_GZ_WORLD=${PX4_GZ_WORLD:=forest}
 PX4_GZ_WORLD=${PX4_GZ_WORLD:=default}
 PX4_SIM_MODEL=${PX4_SIM_MODEL:=x500}
 

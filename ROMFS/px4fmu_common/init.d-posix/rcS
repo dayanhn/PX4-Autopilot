@@ -1,13 +1,16 @@
 #!/bin/sh
 
 # Un comment and use set +e to ignore and set -e to enable 'exit on error control'
+# set +e：禁用“错误退出”模式。即使某条命令失败，脚本也会继续执行。
 set +e
 # Un comment the line below to help debug scripts by printing a trace of the script commands
+# set -x（注释掉）：启用调试模式，打印每一条执行的命令及其参数。
 #set -x
 
 # PX4 commands need the 'px4-' prefix in bash.
 # (px4-alias.sh is expected to be in the PATH)
 # shellcheck disable=SC1091
+# 加载 px4-alias.sh 脚本，该脚本为 PX4 命令定义了别名（例如 px4- 前缀）
 . px4-alias.sh
 
 #search path for sourcing px4-rc.*
@@ -19,6 +22,7 @@ PATH="$PATH:${R}etc/init.d-posix"
 
 # check for ekf2 replay
 # shellcheck disable=SC2154
+# 如果启用了 EKF2 回放模式（replay_mode=ekf2），则加载 rc.replay 脚本并退出
 if [ "$replay_mode" = "ekf2" ]
 then
 	. ${R}etc/init.d-posix/rc.replay
@@ -26,6 +30,7 @@ then
 fi
 
 # initialize script variables
+#初始化脚本中使用的变量，例如 VEHICLE_TYPE（载具类型）、LOGGER_ARGS（日志参数）、LOGGER_BUF（日志缓冲区大小）等
 set VEHICLE_TYPE                none
 set LOGGER_ARGS                 ""
 set LOGGER_BUF                  1000
